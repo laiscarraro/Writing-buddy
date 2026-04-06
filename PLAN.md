@@ -136,17 +136,29 @@ writing-buddy/
 
 ### Phase 2 — Story Card (Ficha de História)
 
-**Right panel** with structured writing metadata:
+**Document hierarchy:**
 
-- **File-level story card:** theme, concept, genre, logline, protagonist, antagonist, three-act outline, summary with spoilers
-- **Per-scene story card:** same fields scoped to the scene, plus assets (character names, locations)
-- **Auto-propagation:** new characters in a scene automatically added to the master file card
-- **Auto-summary:** scene summaries concatenate into a running master summary
-- **Character inheritance:** dropdown to pull characters from master card into a scene
+A file is structured in three levels: file → chapter → scene.
 
-**Backend:** `story_cards.py` — CRUD endpoints, propagation logic, summary aggregation
-**Frontend:** `storycards.js`, `storycards.css` — form panels, dropdowns, character tags
-**Database:** `story_cards` and `story_card_assets` tables
+- A **chapter** is demarcated by a `#` heading line. If no `#` heading exists, the file has one implicit chapter (the entire content).
+- A **scene** is demarcated by a `---` separator within a chapter. If no `---` exists within a chapter, that chapter has one implicit scene.
+- The chapter/scene tab bars are shown conditionally:
+  - With 1 chapter and 1 scene: no tabs shown — clean editor
+  - With 1 chapter and 2+ scenes: scene tabs shown only
+  - With 2+ chapters: chapter tabs shown; within any chapter with 2+ scenes, scene tabs also shown
+
+**Right panel** with structured writing metadata at three levels:
+
+- **File-level story card:** theme, concept, genre, logline, protagonist, antagonist, three-act outline, summary with spoilers (master card — aggregates from all chapters and scenes)
+- **Chapter-level story card:** same core fields scoped to the chapter, plus assets (character names, locations). Chapter summary auto-concatenates from its scene summaries.
+- **Scene-level story card:** same fields scoped to the scene, plus assets (character names, locations). This is the most granular level of metadata.
+- **Auto-propagation:** new characters added in a scene card automatically propagate up to the chapter card, and from the chapter card up to the file-level master card
+- **Auto-summary:** scene summaries concatenate into the chapter summary; chapter summaries concatenate into the master file summary
+- **Character inheritance:** dropdown in scene and chapter cards to pull characters already defined at higher levels
+
+**Backend:** `story_cards.py` — CRUD endpoints, propagation logic, summary aggregation across all three levels
+**Frontend:** `storycards.js`, `storycards.css` — form panels, dropdowns, character tags, conditional tab rendering
+**Database:** `story_cards` and `story_card_assets` tables, with `level` field (`file`, `chapter`, `scene`) and `chapter_index` + `scene_index` as locators
 
 ### Phase 3 — Writing Sessions & Analytics
 

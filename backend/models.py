@@ -30,9 +30,19 @@ class RenameFile(BaseModel):
     new_title: str
 
 
+class ChapterItem(BaseModel):
+    """A chapter within a file, with its scenes."""
+    title: str
+    scenes: list[str]
+    scene_count: int
+    word_count: int
+
+
 class FileResponse(BaseModel):
     """Response model for a loaded file."""
     content: str
-    scenes: list[str]
+    chapters: list[ChapterItem]
+    chapter_count: int
+    scenes: list[str]  # scenes of the active chapter (for backwards compat)
     scene_count: int
     total_word_count: int

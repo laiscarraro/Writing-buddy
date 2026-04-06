@@ -1,16 +1,20 @@
 /**
  * Writing Buddy — Editor
  *
- * CodeMirror 5 with markdown mode, scene tabs, visual delimiter.
+ * CodeMirror 5 with markdown mode, chapter/scene awareness, visual delimiter.
  * Title field shows the filename (without .md) and renames on save.
  */
 
 const Editor = (() => {
     let cm = null;
-    let _scenes = [];
+
+    // Chapter → Scene hierarchy
+    let _chapters = [];     // [{ title, scenes: [string] }]
+    let _activeChapter = 0;
     let _activeScene = 0;
+
     let _fileRelPath = null;
-    let _originalTitle = "";    // Title the file was loaded with (filename stem)
+    let _originalTitle = "";
     let _onSave = null;
 
     const SCENE_DELIMITER_RE = /^-{2,}\s*$/;
@@ -61,27 +65,23 @@ const Editor = (() => {
     }
 
     /**
-     * Load a file. The title is derived from the filename (without .md).
+     * Load a file with chapter/scene structure provided by the API.
      */
-    function loadFile(relPath, content) {
+    function loadFile(relPath, content, chapters) {
         _fileRelPath = relPath;
 
-        // Derive initial title from the filename stem
         const filename = relPath.split("/").pop();
         _originalTitle = filename.replace(/\.md$/i, "");
-
         setTitle(_originalTitle);
 
-        // CRITICAL: Reset active scene BEFORE parsing.
-        // If we don't, _setActiveScene's guard will save the OLD CM content
-        // into the NEW file's first scene (_activeScene starts at 0).
-        _activeScene = -1;
-        _scenes = [];
+        // Store chapter structure from API
+        _chapters = chapters || [{ title: "", scenes: [content], word_count: countWords(content) }];
 
-        // Normalize delimiters and split scenes
-        const normalized = content.replace(/^[-]{2,}\s*$/gm, "---");
-        _parseRawScenes(normalized);
-        _setActiveScene(0);
+        // CRITICAL: reset before loading
+        _activeChapter = 0;
+        _activeScene = -1;
+
+        _loadChapter(0);
 
         show(document.getElementById("editor-area"));
         hide(document.getElementById("empty-state"));
@@ -92,41 +92,28 @@ const Editor = (() => {
     }
 
     /**
-     * Parse raw content into scene array.
+     * Load a specific chapter into the editor (resets scene to 0).
      */
-    function _parseRawScenes(content) {
-        _scenes = [];
-        let current = [];
-        const lines = content.split("\n");
-
-        for (const line of lines) {
-            if (SCENE_DELIMITER_RE.test(line.trim()) && line.trim()) {
-                _scenes.push(current.join("\n"));
-                current = [];
-            } else {
-                current.push(line);
-            }
-        }
-        _scenes.push(current.join("\n"));
-
-        if (_scenes.length > 1 && _scenes[_scenes.length - 1].trim() === "") {
-            _scenes.pop();
-        }
+    function _loadChapter(chapterIndex) {
+        _activeChapter = chapterIndex;
+        _activeScene = -1;
+        _setActiveScene(0);
     }
 
     /**
      * Show a specific scene in the editor.
      */
     function _setActiveScene(index) {
-        if (index < 0 || index >= _scenes.length) return;
+        const chapter = _chapters[_activeChapter];
+        if (!chapter || index < 0 || index >= chapter.scenes.length) return;
 
-        // Save current scene back to array (only if we have a valid active scene)
-        if (_activeScene >= 0 && _activeScene < _scenes.length) {
-            _scenes[_activeScene] = cm.getValue();
+        // Save current scene back to chapter
+        if (_activeScene >= 0 && _activeScene < chapter.scenes.length) {
+            chapter.scenes[_activeScene] = cm.getValue();
         }
 
         _activeScene = index;
-        cm.setValue(_scenes[index]);
+        cm.setValue(chapter.scenes[index]);
         cm.setCursor(0, 0);
 
         _renderTabs();
@@ -136,21 +123,60 @@ const Editor = (() => {
     }
 
     /**
-     * Render scene tab buttons.
+     * Render chapter and scene tab buttons.
+     *
+     * Conditional display:
+     * - 1 chapter + 1 scene: no tabs
+     * - 1 chapter + 2+ scenes: scene tabs only
+     * - 2+ chapters: chapter tabs shown; scene tabs shown if current chapter has 2+ scenes
      */
     function _renderTabs() {
-        const container = document.getElementById("scene-tabs");
-        container.innerHTML = "";
+        const chapterContainer = document.getElementById("chapter-tabs");
+        const sceneContainer = document.getElementById("scene-tabs");
+        if (!chapterContainer || !sceneContainer) return;
 
-        if (_scenes.length <= 1) return;
+        chapterContainer.innerHTML = "";
+        sceneContainer.innerHTML = "";
 
-        for (let i = 0; i < _scenes.length; i++) {
-            const btn = document.createElement("button");
-            btn.className = "scene-tab" + (i === _activeScene ? " active" : "");
-            const wc = countWords(_scenes[i]);
-            btn.innerHTML = `Scene ${i + 1}<span class="tab-count">${wc}</span>`;
-            btn.addEventListener("click", () => _setActiveScene(i));
-            container.appendChild(btn);
+        const hasChapters = _chapters.length > 1;
+        const chapter = _chapters[_activeChapter];
+        const hasScenes = chapter && chapter.scenes.length > 1;
+
+        if (!hasChapters && !hasScenes) return;
+
+        // Chapter tabs
+        if (hasChapters) {
+            for (let i = 0; i < _chapters.length; i++) {
+                const btn = document.createElement("button");
+                btn.className = "chapter-tab" + (i === _activeChapter ? " active" : "");
+                const label = _chapters[i].title || `Chapter ${i + 1}`;
+                const wc = countWords(_chapters[i].scenes.join("\n---\n"));
+                btn.innerHTML = `${escapeHtml(label)}<span class="tab-count">${wc}</span>`;
+                btn.addEventListener("click", () => {
+                    _saveCurrentScene();
+                    _loadChapter(i);
+                });
+                chapterContainer.appendChild(btn);
+            }
+        }
+
+        // Scene tabs
+        if (hasScenes) {
+            for (let i = 0; i < chapter.scenes.length; i++) {
+                const btn = document.createElement("button");
+                btn.className = "scene-tab" + (i === _activeScene ? " active" : "");
+                const wc = countWords(chapter.scenes[i]);
+                btn.innerHTML = `Scene ${i + 1}<span class="tab-count">${wc}</span>`;
+                btn.addEventListener("click", () => _setActiveScene(i));
+                sceneContainer.appendChild(btn);
+            }
+        }
+    }
+
+    function _saveCurrentScene() {
+        const chapter = _chapters[_activeChapter];
+        if (chapter && _activeScene >= 0 && _activeScene < chapter.scenes.length) {
+            chapter.scenes[_activeScene] = cm.getValue();
         }
     }
 
@@ -163,13 +189,16 @@ const Editor = (() => {
     }
 
     /**
-     * Build the final file content from all scenes.
+     * Build the final file content from all chapters and scenes.
      */
     function buildContent() {
-        if (_activeScene >= 0 && _activeScene < _scenes.length) {
-            _scenes[_activeScene] = cm.getValue();
-        }
-        return _scenes.join("\n---\n");
+        _saveCurrentScene();
+
+        const chapterTexts = _chapters.map(ch => {
+            return ch.scenes.join("\n---\n");
+        });
+
+        return chapterTexts.join("\n\n");
     }
 
     /**
@@ -189,13 +218,9 @@ const Editor = (() => {
 
     /**
      * Save. Optionally rename the file if title changed.
-     *
-     * @returns {boolean} True if save succeeded
      */
     async function save() {
         const title = getTitle();
-
-        // Validate: empty title not allowed
         if (!title) {
             alert("Title cannot be empty. Please enter a title before saving.");
             return false;
@@ -203,7 +228,6 @@ const Editor = (() => {
 
         let finalRelPath = _fileRelPath;
 
-        // If title changed, rename the file first
         if (title !== _originalTitle) {
             try {
                 const result = await api("/file/rename", {
@@ -219,27 +243,30 @@ const Editor = (() => {
             }
         }
 
-        // Save content
         const content = buildContent();
-        const saveBtn = document.getElementById("save-btn");
-        if (saveBtn) saveBtn.textContent = "Saving...";
+        const statusEl = document.getElementById("save-status");
+        if (statusEl) statusEl.textContent = "Saving...";
 
         try {
             await _onSave(finalRelPath, content);
+            Sidebar.setClean(finalRelPath);
+            if (statusEl) {
+                statusEl.textContent = "Saved!";
+                setTimeout(() => { if (statusEl) statusEl.textContent = ""; }, 1500);
+            }
             return true;
         } catch (e) {
-            if (saveBtn) saveBtn.textContent = "Error";
-            setTimeout(() => {
-                if (saveBtn) { saveBtn.textContent = "Save"; saveBtn.disabled = false; }
-            }, 2000);
+            if (statusEl) {
+                statusEl.textContent = "Error";
+                setTimeout(() => { if (statusEl) statusEl.textContent = ""; }, 2000);
+            }
+            alert("Save failed: " + e.message);
             return false;
         }
     }
 
     /**
      * Delete the currently loaded file from disk.
-     *
-     * @returns {Promise<string|null>} The deleted file path, or null if cancelled/failed.
      */
     async function deleteFile() {
         if (!_fileRelPath) return null;
@@ -253,16 +280,16 @@ const Editor = (() => {
             });
             const deletedPath = _fileRelPath;
 
-            // Reset editor state
             _fileRelPath = null;
             _originalTitle = "";
-            _scenes = [];
+            _chapters = [];
+            _activeChapter = 0;
             _activeScene = 0;
             setTitle("");
             clearSaveStatus();
+            clearTabs();
             cm.setValue("");
 
-            // Show empty state, hide editor
             hide(document.getElementById("editor-area"));
             show(document.getElementById("empty-state"));
 
@@ -284,10 +311,25 @@ const Editor = (() => {
         if (statusEl) statusEl.textContent = "";
     }
 
+    function clearTabs() {
+        const chapterContainer = document.getElementById("chapter-tabs");
+        const sceneContainer = document.getElementById("scene-tabs");
+        if (chapterContainer) chapterContainer.innerHTML = "";
+        if (sceneContainer) sceneContainer.innerHTML = "";
+    }
+
     function updateFooter() {
+        const chapter = _chapters[_activeChapter];
+        const chapterLabel = chapter && chapter.title ? chapter.title : `Chapter ${_activeChapter + 1}`;
+
         const sceneEl = document.getElementById("scene-info");
-        if (_scenes.length > 1) {
-            sceneEl.textContent = `Scene ${_activeScene + 1} / ${_scenes.length}`;
+        const hasChapters = _chapters.length > 1;
+        const hasScenes = chapter && chapter.scenes.length > 1;
+
+        if (hasChapters && hasScenes) {
+            sceneEl.textContent = `${chapterLabel} · Scene ${_activeScene + 1} / ${chapter.scenes.length}`;
+        } else if (hasScenes) {
+            sceneEl.textContent = `Scene ${_activeScene + 1} / ${chapter.scenes.length}`;
         } else {
             sceneEl.textContent = "";
         }

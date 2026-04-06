@@ -3,7 +3,7 @@ import re
 import shutil
 from pathlib import Path
 
-from backend.utils import split_scenes, join_scenes, word_count, natural_sort_key
+from backend.utils import split_scenes, join_scenes, split_chapters, word_count, natural_sort_key
 from backend.db import get_setting
 
 
@@ -103,14 +103,27 @@ def discover_vault(vault_root: Path):
 
 
 def read_file(relative_path: str, vault_root: Path) -> dict:
-    """Read a file and return content, scenes, and metadata."""
+    """Read a file and return content, chapters, scenes, and metadata."""
     file_path = is_safe_path(relative_path, vault_root)
     content = file_path.read_text(encoding="utf-8")
-    scenes = split_scenes(content)
+    chapters = split_chapters(content)
+
+    # Build simplified chapter list for the response
+    chapter_items = []
+    for ch in chapters:
+        chapter_items.append({
+            "title": ch["title"],
+            "scenes": ch["scenes"],
+            "scene_count": len(ch["scenes"]),
+            "word_count": ch["word_count"],
+        })
+
     return {
         "content": content,
-        "scenes": scenes,
-        "scene_count": len(scenes),
+        "chapters": chapter_items,
+        "chapter_count": len(chapters),
+        "scenes": chapters[0]["scenes"],  # active chapter's scenes (default to first)
+        "scene_count": len(chapters[0]["scenes"]),
         "total_word_count": word_count(content),
     }
 
