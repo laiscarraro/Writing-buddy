@@ -89,7 +89,10 @@ const App = (() => {
     async function handleFileSelect(file) {
         try {
             const data = await api("/file/" + encodeURIComponent(file.path), { method: "GET" });
-            Editor.loadFile(file.path, data.content);
+            const chapters = data.chapters && data.chapters.length > 0
+                ? data.chapters.map(ch => ({ title: ch.title, scenes: ch.scenes, word_count: ch.word_count }))
+                : [{ title: "", scenes: [data.content], word_count: countWords(data.content) }];
+            Editor.loadFile(file.path, data.content, chapters);
 
             // Update active highlight in sidebar
             const container = document.getElementById("file-tree");
