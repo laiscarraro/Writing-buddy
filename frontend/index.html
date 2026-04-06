@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writing Buddy</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- CodeMirror 5 from CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/markdown/markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+</head>
+<body>
+
+    <!-- First-run setup screen -->
+    <div id="setup-screen" class="setup-screen hidden">
+        <div class="setup-card">
+            <h1>Writing Buddy</h1>
+            <p class="setup-subtitle">Select your Obsidian vault folder to get started.</p>
+            <label for="vault-input">Vault path</label>
+            <input type="text" id="vault-input" placeholder="e.g. C:/Users/yourname/Obsidian Vault">
+            <p id="vault-error" class="error-text hidden"></p>
+            <button id="setup-continue" disabled>Continue</button>
+        </div>
+    </div>
+
+    <!-- Main app -->
+    <div id="app" class="app hidden">
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <span class="sidebar-title">Explorer</span>
+            </div>
+            <div id="file-tree" class="file-tree"></div>
+            <div id="sidebar-footer" class="sidebar-footer">
+                <!-- <span id="footer-word-count"></span> -->
+                <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
+            </div>
+        </aside>
+
+        <main id="main">
+            <div id="editor-area" class="editor-area hidden">
+
+                <div id="editor-header" class="editor-header">
+                    <span id="scene-info"></span>
+                    <span id="word-count"></span>
+                    <span id="save-status" class="save-status"></span>
+                    <button id="delete-btn" class="delete-btn" title="Delete file">Delete</button>
+                </div>
+
+                <div class="editor-content">
+                    <div class="title-bar">
+                        <input type="text" id="title-input" class="title-input" placeholder="Untitled">
+                    </div>
+
+                    <div id="scene-tabs" class="scene-tabs"></div>
+
+                    <div id="editor-wrapper" class="editor-wrapper">
+                        <textarea id="editor"></textarea>
+                    </div>
+                </div>
+                
+            </div>
+
+            <div id="empty-state" class="empty-state">
+                <p>Select a file from the sidebar to begin editing.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal-overlay" class="modal-overlay hidden">
+        <div id="settings-modal" class="modal">
+            <div class="modal-header">
+                <h2>Change Vault</h2>
+                <button id="modal-close-btn" class="modal-close-btn" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="current-vault-path">Current vault</label>
+                <input type="text" id="current-vault-path" readonly class="readonly-input">
+                <label for="new-vault-path">New path</label>
+                <input type="text" id="new-vault-path" placeholder="e.g. C:/Users/yourname/Obsidian Vault">
+                <p id="settings-error" class="error-text hidden"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-cancel-btn" class="btn-cancel">Cancel</button>
+                <button id="modal-save-btn" class="btn-save">Change vault</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/utils.js"></script>
+    <script src="/js/sidebar.js"></script>
+    <script src="/js/editor.js"></script>
+    <script src="/js/settings.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
